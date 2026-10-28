@@ -62,6 +62,7 @@ _DEFAULTS: dict = {
     "source_type": "pasted",
     "timed_mode": False,
     "timer_deadline": None,   # absolute datetime when time expires
+    "quiz_start_time": None,  # absolute datetime when quiz was started
     "user_answers": {},       # {index: str}
     "submitted": False,
     "quiz_result": None,      # QuizResult after submission
@@ -76,22 +77,13 @@ for _k, _v in _DEFAULTS.items():
         st.session_state[_k] = _v
 
 # ---------------------------------------------------------------------------
-# Auto-refresh (timer countdown) — only when a timed quiz is active
+# Auto-refresh helper check (used in timer section during active timed quiz)
 # ---------------------------------------------------------------------------
 try:
     from streamlit_autorefresh import st_autorefresh  # type: ignore
     _has_autorefresh = True
 except ImportError:
     _has_autorefresh = False
-
-_quiz_active = (
-    st.session_state.quiz
-    and st.session_state.timed_mode
-    and not st.session_state.submitted
-    and st.session_state.timer_deadline is not None
-)
-if _quiz_active and _has_autorefresh:
-    st_autorefresh(interval=1000, limit=None, key="timer_refresh")
 
 # ---------------------------------------------------------------------------
 # Sidebar
@@ -265,6 +257,11 @@ if _generate_clicked:
             st.session_state.difficulty         = _difficulty
             st.session_state.question_types     = _question_types
             st.session_state.notes_text         = _raw_notes
+            # Clear any old answer widget keys before generating new quiz
+            for _old_key in list(st.session_state.keys()):
+                if _old_key.startswith("ans_"):
+                    del st.session_state[_old_key]
+
             st.session_state.source_type        = _source_type
             st.session_state.timed_mode         = _timed_mode
             st.session_state.user_answers       = {}
@@ -276,11 +273,13 @@ if _generate_clicked:
             st.session_state.new_quiz_pending   = False
 
             if _timed_mode:
+                _now = datetime.datetime.now()
+                st.session_state.quiz_start_time = _now
                 st.session_state.timer_deadline = (
-                    datetime.datetime.now()
-                    + datetime.timedelta(minutes=_timer_option)
+                    _now + datetime.timedelta(minutes=_timer_option)
                 )
             else:
+                st.session_state.quiz_start_time = None
                 st.session_state.timer_deadline = None
 
             # Provider and Agent badges
@@ -335,6 +334,8 @@ st.divider()
 if st.session_state.timed_mode and not _is_submitted:
     _deadline = st.session_state.timer_deadline
     if _deadline:
+        if _has_autorefresh:
+            st_autorefresh(interval=1000, limit=None, key=f"timer_refresh_{_quiz_id}")
         _remaining = max(0.0, (_deadline - datetime.datetime.now()).total_seconds())
         _mins, _secs = divmod(int(_remaining), 60)
         _tc = "red" if _remaining < 60 else "orange" if _remaining < 180 else "green"
@@ -345,12 +346,15 @@ if st.session_state.timed_mode and not _is_submitted:
         if _remaining <= 0 and not _is_submitted:
             st.warning("⏰ Time's up! Submitting automatically…")
             # Auto-submit with whatever answers are in session state
+            _start = st.session_state.get("quiz_start_time") or (
+                _deadline - datetime.timedelta(
+                    seconds=_timer_option * 60 if "_timer_option" in dir() else 300
+                )
+            )
             _result = evaluate_quiz(
                 _questions,
                 st.session_state.user_answers,
-                start_time=_deadline - datetime.timedelta(
-                    seconds=_timer_option * 60 if "_timer_option" in dir() else 300
-                ),
+                start_time=_start,
             )
             st.session_state.quiz_result = _result
             st.session_state.submitted   = True
@@ -432,56 +436,74 @@ st.subheader(f"📝 Quiz — {_diff_cap} | {len(_questions)} Questions")
 # SECTION 1: Take the Quiz (hidden when submitted)
 # ---------------------------------------------------------------------------
 if not _is_submitted:
-    with st.form("quiz_form"):
+    with st.container():
         for _i, _q in enumerate(_questions):
             _qtype = _q.get("type", "mcq")
             _flag  = " 🚩" if _q.get("flagged") else ""
             st.markdown(f"**Q{_i + 1}.** {_q.get('question', '')}{_flag}")
 
-            _key = f"ans_{_i}"
+            _key = f"ans_{_quiz_id}_{_i}"
 
             if _qtype == "mcq":
                 _opts = _q.get("options") or {}
                 _choices = [f"{k}. {v}" for k, v in _opts.items()]
+                _prev_ans = st.session_state.user_answers.get(_i, "")
+                _default_idx = None
+                if _prev_ans:
+                    for _c_idx, _c in enumerate(_choices):
+                        if _c.startswith(f"{_prev_ans}."):
+                            _default_idx = _c_idx
+                            break
                 _ans = st.radio(
                     f"q_{_i}", _choices, key=_key,
-                    index=None,                        # no option pre-selected
+                    index=_default_idx,
                     label_visibility="collapsed",
                 )
-                # Store only the letter (first char), empty string when nothing chosen
-                st.session_state.user_answers[_i] = _ans[:1] if _ans else ""
+                if _ans:
+                    st.session_state.user_answers[_i] = _ans[:1]
 
             elif _qtype == "true_false":
+                _prev_ans = st.session_state.user_answers.get(_i, "")
+                _default_idx = None
+                if _prev_ans in ("True", "False"):
+                    _default_idx = 0 if _prev_ans == "True" else 1
                 _ans = st.radio(
                     f"q_{_i}", ["True", "False"], key=_key,
-                    index=None,                        # no option pre-selected
+                    index=_default_idx,
                     label_visibility="collapsed",
                 )
-                st.session_state.user_answers[_i] = _ans or ""
+                if _ans:
+                    st.session_state.user_answers[_i] = _ans
 
             elif _qtype == "short_answer":
+                _prev_ans = st.session_state.user_answers.get(_i, "")
                 _ans = st.text_area(
                     f"Your answer for Q{_i + 1}",
+                    value=_prev_ans,
                     key=_key,
                     height=80,
                     label_visibility="collapsed",
                 )
-                st.session_state.user_answers[_i] = _ans or ""
+                if _ans is not None:
+                    st.session_state.user_answers[_i] = _ans
 
             st.markdown("---")
 
-        _form_submitted = st.form_submit_button(
+        _form_submitted = st.button(
             "✅ Submit Quiz", use_container_width=True, type="primary"
         )
 
     if _form_submitted:
+        _start = st.session_state.get("quiz_start_time") or (
+            st.session_state.get("timer_deadline") and (
+                st.session_state.timer_deadline
+                - datetime.timedelta(minutes=_timer_option if "_timer_option" in dir() else 5)
+            )
+        )
         _result = evaluate_quiz(
             _questions,
             st.session_state.user_answers,
-            start_time=st.session_state.get("timer_deadline") and (
-                st.session_state.timer_deadline
-                - datetime.timedelta(minutes=_timer_option if "_timer_option" in dir() else 5)
-            ),
+            start_time=_start,
         )
         st.session_state.quiz_result = _result
         st.session_state.submitted   = True
@@ -605,8 +627,11 @@ if _is_submitted and st.session_state.quiz_result is not None:
     if st.button("🔄 Generate another quiz", use_container_width=True):
         for _k in ["quiz", "quiz_id", "submitted", "quiz_result",
                    "user_answers", "show_answer_key", "timed_mode",
-                   "timer_deadline", "validation_report", "agent_metrics"]:
+                   "timer_deadline", "quiz_start_time", "validation_report", "agent_metrics"]:
             st.session_state[_k] = _DEFAULTS.get(_k)
+        for _old_key in list(st.session_state.keys()):
+            if _old_key.startswith("ans_"):
+                del st.session_state[_old_key]
         st.rerun()
 
 # ---------------------------------------------------------------------------
