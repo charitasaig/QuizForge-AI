@@ -82,7 +82,10 @@ for entry in history:
                     _qs = _full.get("questions", [])
                     st.markdown(f"**{len(_qs)} questions loaded**")
                     for _i, _q in enumerate(_qs):
-                        st.markdown(f"- Q{_i+1} [{_q.get('type','')}]: {_q.get('question','')[:80]}")
+                        _ref = f" [{_q['source_reference']}]" if _q.get("source_reference") else ""
+                        st.markdown(f"- Q{_i+1} [{_q.get('type','')}]{_ref}: {_q.get('question','')[:80]}")
+                        if _q.get("source_evidence"):
+                            st.caption(f"  📌 Evidence: *{_q.get('source_evidence')[:100]}…*")
                     if _full.get("result"):
                         _r = _full["result"]
                         st.success(

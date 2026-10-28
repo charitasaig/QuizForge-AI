@@ -216,6 +216,15 @@ def parse_quiz_response(raw_text: str) -> list[dict[str, Any]]:
 # 5. Public pipeline entry point
 # ---------------------------------------------------------------------------
 
+_last_agent_metrics: Any | None = None
+
+
+def get_last_agent_metrics() -> Any | None:
+    """Return metrics from the most recent QuizAgent execution."""
+    global _last_agent_metrics
+    return _last_agent_metrics
+
+
 def run_quiz_pipeline(
     notes: str,
     num_questions: int,
@@ -231,13 +240,15 @@ def run_quiz_pipeline(
     Raises:
         ValueError on parse failure (caller should display to user).
     """
+    global _last_agent_metrics
     from backend.core.quiz_validator import validate_questions
 
     if use_agent:
         try:
             from backend.agent.quiz_agent import QuizAgent
             agent = QuizAgent()
-            agent_qs, provider, _ = agent.run(notes, num_questions, difficulty, question_types)
+            agent_qs, provider, metrics = agent.run(notes, num_questions, difficulty, question_types)
+            _last_agent_metrics = metrics
             if agent_qs:
                 report = validate_questions(agent_qs)
                 valid_qs = report.valid_questions if report.valid_questions else agent_qs
@@ -245,6 +256,7 @@ def run_quiz_pipeline(
         except Exception:
             pass
 
+    _last_agent_metrics = None
     prepared = prepare_notes(notes)
     prompt = build_prompt(prepared, num_questions, difficulty, question_types)
     raw, provider = llm_service.generate_quiz_raw(prompt, num_questions, difficulty, question_types)

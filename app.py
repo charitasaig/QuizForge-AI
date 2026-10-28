@@ -67,6 +67,7 @@ _DEFAULTS: dict = {
     "quiz_result": None,      # QuizResult after submission
     "show_answer_key": False,
     "validation_report": None,
+    "agent_metrics": None,
     "new_quiz_pending": False,
 }
 
@@ -238,6 +239,8 @@ if _generate_clicked:
             _questions, _provider = run_quiz_pipeline(
                 _raw_notes, _num_questions, _difficulty, _question_types
             )
+            from backend.core.pipeline import get_last_agent_metrics
+            _agent_metrics = get_last_agent_metrics()
 
             # Run (and store) validation report
             _report = validate_questions(_questions)
@@ -269,6 +272,7 @@ if _generate_clicked:
             st.session_state.quiz_result        = None
             st.session_state.show_answer_key    = False
             st.session_state.validation_report  = _report
+            st.session_state.agent_metrics      = _agent_metrics
             st.session_state.new_quiz_pending   = False
 
             if _timed_mode:
@@ -285,6 +289,9 @@ if _generate_clicked:
             _bc = _badge_colours.get(_provider, "#6B7280")
             _bl = _badge_labels.get(_provider, _provider.upper())
             _emb_mode = getattr(_report, "embedding_mode", "tfidf").upper()
+            _retry_info = ""
+            if _agent_metrics and _agent_metrics.retries_succeeded > 0:
+                _retry_info = f" • {_agent_metrics.retries_succeeded} self-corrected"
             st.success(
                 f"✅ **{len(_questions)} questions generated** "
                 f"· Quiz ID: `{_quiz_id}` "
@@ -293,7 +300,7 @@ if _generate_clicked:
                 f'<span style="background:{_bc};color:white;padding:3px 10px;'
                 f'border-radius:12px;font-size:0.85rem;font-weight:600;">{_bl}</span> '
                 f'<span style="background:#10B981;color:white;padding:3px 10px;'
-                f'border-radius:12px;font-size:0.85rem;font-weight:600;">🤖 Agentic RAG ({_emb_mode})</span>',
+                f'border-radius:12px;font-size:0.85rem;font-weight:600;">🤖 Agentic RAG ({_emb_mode}{_retry_info})</span>',
                 unsafe_allow_html=True,
             )
 
@@ -391,6 +398,29 @@ if _report:
                 f"{_icon} **Q{_iss.question_index + 1}** [{_iss.issue_type} — {_label}]: "
                 f"{_iss.detail}"
             )
+
+# ---------------------------------------------------------------------------
+# Agentic AI Execution & Quality Metrics
+# ---------------------------------------------------------------------------
+_agent_metrics = st.session_state.get("agent_metrics")
+if _agent_metrics:
+    with st.expander("🤖 Agentic AI Execution & Quality Metrics", expanded=False):
+        _m1, _m2, _m3, _m4 = st.columns(4)
+        _m1.metric("Requested", _agent_metrics.total_requested)
+        _m2.metric("Total Generated", _agent_metrics.total_generated)
+        _m3.metric("Accepted", _agent_metrics.total_accepted)
+        _m4.metric("Self-Corrected", _agent_metrics.retries_succeeded)
+        st.caption(
+            f"**Active Embedding Engine:** `{_agent_metrics.embedding_mode.upper()}` | "
+            f"**Max Retries per Question:** `{_agent_metrics.max_retries_per_question}` | "
+            f"**Retries Attempted:** `{_agent_metrics.retries_attempted}`"
+        )
+        if any(_agent_metrics.rejections_by_category.values()):
+            st.markdown("**Issues Prevented by Agent Quality Gate:**")
+            for _cat, _cnt in _agent_metrics.rejections_by_category.items():
+                if _cnt > 0:
+                    st.markdown(f"- **{_cat.capitalize()}**: {_cnt} candidate(s) rejected and retried")
+
 
 # ---------------------------------------------------------------------------
 # Quiz heading
@@ -575,7 +605,7 @@ if _is_submitted and st.session_state.quiz_result is not None:
     if st.button("🔄 Generate another quiz", use_container_width=True):
         for _k in ["quiz", "quiz_id", "submitted", "quiz_result",
                    "user_answers", "show_answer_key", "timed_mode",
-                   "timer_deadline", "validation_report"]:
+                   "timer_deadline", "validation_report", "agent_metrics"]:
             st.session_state[_k] = _DEFAULTS.get(_k)
         st.rerun()
 

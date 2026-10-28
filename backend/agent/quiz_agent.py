@@ -181,7 +181,18 @@ class QuizAgent:
             if sim >= self.similarity_threshold:
                 return False, "duplicate", f"Duplicate to Q{i+1} (similarity: {sim:.2f})"
 
-        # 3. Grounding check against evidence chunks
+        # 3. NLP Quality Checks (Answer Leakage & Distractor Duplication)
+        from backend.nlp.quality_checker import check_answer_leakage, check_distractor_quality
+        leakage = check_answer_leakage(candidate, len(accepted_questions))
+        if leakage:
+            return False, "quality", leakage[0].detail
+
+        dist_issues = check_distractor_quality(candidate, len(accepted_questions))
+        for iss in dist_issues:
+            if iss.issue_type == "invalid_mcq":
+                return False, "structural", iss.detail
+
+        # 4. Grounding check against evidence chunks
         # Find the best supporting chunk among the evidence chunks
         best_chunk = None
         best_meta = None
