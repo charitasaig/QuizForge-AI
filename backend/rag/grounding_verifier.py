@@ -23,17 +23,26 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _get_content_words(text: str, min_len: int = 3) -> set[str]:
-    """Extract content words ignoring standard english stopwords."""
+def _stem_word(w: str) -> str:
+    """Lightweight suffix-stripper for robust inflection matching (e.g. releases -> releas)."""
+    for suff in ("ing", "tion", "sion", "ment", "able", "ible", "ness", "ed", "es", "s"):
+        if w.endswith(suff) and len(w) - len(suff) >= 3:
+            return w[:-len(suff)]
+    return w
+
+
+def _get_content_stems(text: str, min_len: int = 3) -> set[str]:
+    """Extract content word stems ignoring standard english stopwords and boolean markers."""
     _STOPWORDS = {
         "the", "and", "is", "in", "it", "of", "to", "a", "an", "for", "on", "with",
         "as", "by", "at", "from", "that", "this", "these", "those", "are", "was",
         "were", "be", "been", "being", "have", "has", "had", "do", "does", "did",
         "but", "not", "what", "which", "who", "when", "where", "why", "how", "all",
         "any", "both", "each", "few", "more", "most", "other", "some", "such",
+        "true", "false",  # boolean answers handled separately
     }
     words = _norm(text).split()
-    return {w for w in words if len(w) >= min_len and w not in _STOPWORDS}
+    return {_stem_word(w) for w in words if len(w) >= min_len and w not in _STOPWORDS}
 
 
 def verify_grounding(
@@ -55,46 +64,47 @@ def verify_grounding(
         options = question.get("options") or {}
         ans_key = str(question.get("answer", "")).strip().upper()
         answer_text = str(options.get(ans_key, "")).strip()
+    elif q_type == "true_false":
+        answer_text = ""  # Boolean truth value, not content
     else:
         answer_text = str(question.get("answer", "")).strip()
 
     chunk_norm = _norm(chunk.text)
-    chunk_words = _get_content_words(chunk.text)
+    chunk_stems = _get_content_stems(chunk.text)
 
-    # 1. Check if source_hint directly matches text in the chunk
+    # 1. Check stem relevance
+    stem_stems = _get_content_stems(stem)
+    stem_overlap = stem_stems & chunk_stems
+    stem_supported = len(stem_overlap) >= 1 if stem_stems else True
+
+    # 2. Check hint relevance
     hint_norm = _norm(hint)
-    hint_words = _get_content_words(hint)
-
+    hint_stems = _get_content_stems(hint)
     hint_supported = False
     if hint_norm and hint_norm in chunk_norm:
         hint_supported = True
-    elif hint_words:
-        overlap = hint_words & chunk_words
-        if len(overlap) / len(hint_words) >= 0.60:
+    elif hint_stems:
+        hint_overlap = hint_stems & chunk_stems
+        if len(hint_overlap) / len(hint_stems) >= 0.35:
             hint_supported = True
 
-    # 2. Check if answer content words are present in chunk
-    answer_words = _get_content_words(answer_text)
+    # 3. Check answer relevance
+    answer_norm = _norm(answer_text)
+    answer_stems = _get_content_stems(answer_text)
     answer_supported = False
-    if not answer_words:
-        # e.g. T/F "True" or empty
+    if q_type == "true_false":
+        # For True/False, the assertion is the stem itself; require substantial stem overlap
+        answer_supported = (len(stem_overlap) / len(stem_stems) >= 0.30) if stem_stems else True
+    elif answer_norm and answer_norm in chunk_norm:
         answer_supported = True
-    else:
-        overlap = answer_words & chunk_words
-        ratio = len(overlap) / len(answer_words)
-        # For multi-word answers, require at least 50% content words in chunk
-        if len(answer_words) == 1:
-            answer_supported = bool(overlap)
+    elif answer_stems:
+        answer_overlap = answer_stems & chunk_stems
+        if len(answer_stems) == 1:
+            answer_supported = bool(answer_overlap)
         else:
-            answer_supported = ratio >= 0.50
+            answer_supported = (len(answer_overlap) / len(answer_stems) >= 0.30)
 
-    # 3. Check if stem topic has presence in chunk
-    stem_words = _get_content_words(stem)
-    stem_overlap = stem_words & chunk_words
-    stem_supported = len(stem_overlap) >= 1 if stem_words else True
-
-    # Overall grounding decision:
-    # Must have stem relevance AND (answer supported OR hint supported)
+    # Decision: question stem must be present AND (answer supported OR hint supported)
     is_grounded = stem_supported and (answer_supported or hint_supported)
 
     if not is_grounded:
@@ -115,11 +125,11 @@ def verify_grounding(
     sentences = re.split(r"(?<=[.!?])\s+", chunk.text.strip())
     best_sent = ""
     best_score = 0
-    all_query_words = stem_words | answer_words | hint_words
+    all_query_stems = stem_stems | answer_stems | hint_stems
 
     for s in sentences:
-        s_words = _get_content_words(s)
-        match_count = len(s_words & all_query_words)
+        s_stems = _get_content_stems(s)
+        match_count = len(s_stems & all_query_stems)
         if match_count > best_score:
             best_score = match_count
             best_sent = s.strip()

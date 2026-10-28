@@ -221,9 +221,10 @@ def run_quiz_pipeline(
     num_questions: int,
     difficulty: str,
     question_types: list[str],
+    use_agent: bool = True,
 ) -> tuple[list[dict[str, Any]], str]:
     """
-    Full pipeline: prepare notes → build prompt → call LLM → parse → validate.
+    Full pipeline: prepare notes → bounded agent / RAG workflow → quality validation.
 
     Returns:
         (questions, provider_used)
@@ -231,6 +232,18 @@ def run_quiz_pipeline(
         ValueError on parse failure (caller should display to user).
     """
     from backend.core.quiz_validator import validate_questions
+
+    if use_agent:
+        try:
+            from backend.agent.quiz_agent import QuizAgent
+            agent = QuizAgent()
+            agent_qs, provider, _ = agent.run(notes, num_questions, difficulty, question_types)
+            if agent_qs:
+                report = validate_questions(agent_qs)
+                valid_qs = report.valid_questions if report.valid_questions else agent_qs
+                return valid_qs, provider
+        except Exception:
+            pass
 
     prepared = prepare_notes(notes)
     prompt = build_prompt(prepared, num_questions, difficulty, question_types)
