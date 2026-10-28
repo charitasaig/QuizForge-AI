@@ -93,6 +93,10 @@ def export_answer_key_txt(
         lines.append(f"Explanation: {q.get('explanation', '')}")
         if q.get("source_hint"):
             lines.append(f"Source     : {q.get('source_hint', '')}")
+        if q.get("source_reference"):
+            lines.append(f"Citation   : {q.get('source_reference')}")
+        if q.get("source_evidence"):
+            lines.append(f"Evidence   : {q.get('source_evidence')}")
         if q.get("flagged"):
             lines.append("** FLAGGED: This question was marked as potentially vague or weakly supported. **")
         lines.append("")
@@ -109,7 +113,8 @@ def export_answer_key_txt(
 _CSV_COLUMNS = [
     "quiz_id", "question_id", "question_type", "difficulty",
     "question", "option_a", "option_b", "option_c", "option_d",
-    "correct_answer", "expected_answer", "explanation", "source_evidence", "flagged",
+    "correct_answer", "expected_answer", "explanation", "source_evidence",
+    "source_reference", "flagged",
 ]
 
 
@@ -139,7 +144,8 @@ def export_quiz_csv(
             "correct_answer": q.get("answer", ""),
             "expected_answer": q.get("answer", "") if q_type == "short_answer" else "",
             "explanation": q.get("explanation", ""),
-            "source_evidence": q.get("source_hint", ""),
+            "source_evidence": q.get("source_evidence") or q.get("source_hint", ""),
+            "source_reference": q.get("source_reference", ""),
             "flagged": str(q.get("flagged", False)),
         }
         writer.writerow(row)

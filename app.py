@@ -279,18 +279,21 @@ if _generate_clicked:
             else:
                 st.session_state.timer_deadline = None
 
-            # Provider badge
+            # Provider and Agent badges
             _badge_colours = {"groq": "#F97316", "gemini": "#3B82F6", "demo": "#6B7280"}
             _badge_labels  = {"groq": "⚡ Groq", "gemini": "✨ Gemini", "demo": "🔧 Demo Mode"}
             _bc = _badge_colours.get(_provider, "#6B7280")
             _bl = _badge_labels.get(_provider, _provider.upper())
+            _emb_mode = getattr(_report, "embedding_mode", "tfidf").upper()
             st.success(
                 f"✅ **{len(_questions)} questions generated** "
                 f"· Quiz ID: `{_quiz_id}` "
             )
             st.markdown(
                 f'<span style="background:{_bc};color:white;padding:3px 10px;'
-                f'border-radius:12px;font-size:0.85rem;font-weight:600;">{_bl}</span>',
+                f'border-radius:12px;font-size:0.85rem;font-weight:600;">{_bl}</span> '
+                f'<span style="background:#10B981;color:white;padding:3px 10px;'
+                f'border-radius:12px;font-size:0.85rem;font-weight:600;">🤖 Agentic RAG ({_emb_mode})</span>',
                 unsafe_allow_html=True,
             )
 
@@ -371,11 +374,12 @@ if _report:
         + (" ⚠️" if _has_issues else " ✅"),
         expanded=_has_issues,
     ):
-        _c1, _c2, _c3, _c4 = st.columns(4)
+        _c1, _c2, _c3, _c4, _c5 = st.columns(5)
         _c1.metric("Generated",   _report.total_generated)
         _c2.metric("Valid",       _report.valid_count)
         _c3.metric("Duplicates removed",  _report.duplicate_count)
         _c4.metric("Flagged",     _report.flagged_count)
+        _c5.metric("NLP Embeddings", getattr(_report, "embedding_mode", "tfidf").upper())
         if _report.invalid_count:
             st.warning(f"⚠️ {_report.invalid_count} question(s) excluded due to structural issues.")
         for _iss in _issues:
@@ -552,7 +556,13 @@ if _is_submitted and st.session_state.quiz_result is not None:
             st.markdown(f"**Your answer:** {_qr.student_answer or '*(no answer)*'}")
             st.markdown(f"**Correct answer:** {_qr.correct_answer}")
             st.markdown(f"**Explanation:** {_qr.explanation}")
-            if _qr.source_hint:
+            _orig_q = _questions[_qr.question_index] if _qr.question_index < len(_questions) else {}
+            _src_ref = _orig_q.get("source_reference")
+            _src_ev = _orig_q.get("source_evidence") or _qr.source_hint
+            if _src_ref or _src_ev:
+                _ref_tag = f"[{_src_ref}] " if _src_ref else ""
+                st.caption(f"📌 Source evidence: *{_ref_tag}{_src_ev}*")
+            elif _qr.source_hint:
                 st.caption(f"📌 Source hint: *{_qr.source_hint}*")
             if _qr.status == "uncertain":
                 st.warning(

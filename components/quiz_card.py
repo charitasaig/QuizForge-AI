@@ -40,21 +40,31 @@ def render_question_card(index: int, question: dict) -> None:
                 icon = "✅" if key == correct else "◦"
                 st.markdown(f"&nbsp;&nbsp;&nbsp;{icon} **{key}.** {val}")
 
-        st.markdown(
-            f"> **Answer:** {question.get('answer', '')}  \n"
-            f"> **Explanation:** {question.get('explanation', '')}  \n"
-            + (
-                f"> 📌 *Source: {question.get('source_hint', '')}*"
-                if question.get("source_hint")
-                else ""
-            )
-        )
+        source_ref = question.get("source_reference")
+        source_ev = question.get("source_evidence") or question.get("source_hint", "")
+        if source_ref or source_ev:
+            ref_prefix = f"[{source_ref}] " if source_ref else ""
+            st.markdown(f"> 📌 *Source: {ref_prefix}{source_ev}*")
+
         if flagged:
             st.warning(
                 "⚠️ This question was flagged as potentially vague or "
                 "weakly supported by the notes."
             )
         st.markdown("---")
+
+
+def render_agent_badge(embedding_mode: str = "tfidf", retries_succeeded: int = 0) -> None:
+    """Show agentic AI and RAG pipeline status badge."""
+    label = f"🤖 Agentic RAG ({embedding_mode.upper()})"
+    if retries_succeeded > 0:
+        label += f" • {retries_succeeded} self-corrected"
+    st.markdown(
+        f'<span style="background:#10B981;color:white;padding:3px 10px;'
+        f'border-radius:12px;font-size:0.8rem;font-weight:600;margin-left:6px;">{label}</span>',
+        unsafe_allow_html=True,
+    )
+
 
 
 def render_score_card(correct: int, total: int) -> None:
