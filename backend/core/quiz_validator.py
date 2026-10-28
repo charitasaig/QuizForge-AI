@@ -16,6 +16,10 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.config import SEMANTIC_SIMILARITY_THRESHOLD
+from backend.nlp.quality_checker import check_all_quality
+from backend.nlp.semantic_similarity import SemanticSimilarityDetector
+
 
 # ---------------------------------------------------------------------------
 # Normalisation helpers
@@ -53,6 +57,7 @@ class ValidationReport:
     flagged_count: int = 0
     issues: list[QuestionIssue] = field(default_factory=list)
     valid_questions: list[dict[str, Any]] = field(default_factory=list)
+    embedding_mode: str = "tfidf"
 
 
 # ---------------------------------------------------------------------------
@@ -140,16 +145,25 @@ def _check_ambiguous(q: dict, index: int) -> list[QuestionIssue]:
 # Main validation entry point
 # ---------------------------------------------------------------------------
 
-def validate_questions(questions: list[dict[str, Any]]) -> ValidationReport:
+def validate_questions(
+    questions: list[dict[str, Any]],
+    similarity_threshold: float | None = None,
+) -> ValidationReport:
     """
-    Run all quality checks on a list of question dicts.
+    Run all quality and semantic checks on a list of question dicts.
 
     Returns a ValidationReport with:
-      - valid_questions: the questions that passed all structural checks
+      - valid_questions: the questions that passed all structural and uniqueness checks
       - issues: list of per-question problems
       - counts for the summary UI
+      - embedding_mode: active embedding engine ('sentence-transformers' or 'tfidf')
     """
     report = ValidationReport(total_generated=len(questions))
+    detector = SemanticSimilarityDetector(
+        threshold=similarity_threshold if similarity_threshold is not None else SEMANTIC_SIMILARITY_THRESHOLD
+    )
+    report.embedding_mode = detector.get_active_mode()
+
     seen_normalised: dict[str, int] = {}   # normalised_text → first index
     valid: list[dict[str, Any]] = []
     excluded_indices: set[int] = set()
@@ -177,6 +191,9 @@ def validate_questions(questions: list[dict[str, Any]]) -> ValidationReport:
         # --- Ambiguity heuristics ---
         q_issues.extend(_check_ambiguous(q, i))
 
+        # --- Advanced NLP Quality & Distractor Checks ---
+        q_issues.extend(check_all_quality(q, i))
+
         # --- Duplicate detection ---
         norm_q = _normalise(q.get("question", ""))
         if norm_q in seen_normalised:
@@ -198,6 +215,25 @@ def validate_questions(questions: list[dict[str, Any]]) -> ValidationReport:
         if hard_fail and i not in excluded_indices:
             excluded_indices.add(i)
             report.invalid_count += 1
+
+    # --- Semantic Similarity Duplicate Detection for surviving questions ---
+    question_texts = [q.get("question", "") for q in questions]
+    semantic_dups = detector.find_duplicates(
+        question_texts,
+        threshold=similarity_threshold if similarity_threshold is not None else SEMANTIC_SIMILARITY_THRESHOLD,
+    )
+    for dup_idx, orig_idx, sim_score in semantic_dups:
+        if dup_idx not in excluded_indices:
+            issue = QuestionIssue(
+                question_index=dup_idx,
+                question_text=questions[dup_idx].get("question", ""),
+                issue_type="duplicate",
+                detail=f"Semantically duplicate to Q{orig_idx + 1} (similarity: {sim_score:.2f}).",
+                excluded=True,
+            )
+            report.issues.append(issue)
+            report.duplicate_count += 1
+            excluded_indices.add(dup_idx)
 
     # Build valid list
     for i, q in enumerate(questions):

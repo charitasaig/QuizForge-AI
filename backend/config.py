@@ -36,3 +36,10 @@ GROQ_MODEL: str = "openai/gpt-oss-20b"          # fast, free-tier model on Groq 
 GROQ_MODEL_LARGE: str = "openai/gpt-oss-120b"   # higher quality fallback
 GEMINI_MODEL: str = "gemini-2.5-flash"           # current Gemini free-tier model
 LLM_TIMEOUT_SECONDS: int = 30
+
+# NLP & RAG settings
+SEMANTIC_SIMILARITY_THRESHOLD: float = 0.82
+RAG_CHUNK_SIZE: int = 800
+RAG_CHUNK_OVERLAP: int = 150
+MAX_AGENT_RETRIES: int = 2
+
