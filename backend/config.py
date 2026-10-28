@@ -11,7 +11,7 @@ def get_groq_api_key() -> str | None:
     # 1. Streamlit secrets (Streamlit Cloud deployment)
     try:
         return st.secrets["GROQ_API_KEY"]
-    except (KeyError, FileNotFoundError):
+    except Exception:
         pass
     # 2. Environment variable (local .env loaded by python-dotenv in app.py)
     return os.environ.get("GROQ_API_KEY")
@@ -21,7 +21,7 @@ def get_gemini_api_key() -> str | None:
     """Return the Gemini API key, or None if not configured."""
     try:
         return st.secrets["GEMINI_API_KEY"]
-    except (KeyError, FileNotFoundError):
+    except Exception:
         pass
     return os.environ.get("GEMINI_API_KEY")
 

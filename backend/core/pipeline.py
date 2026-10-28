@@ -18,7 +18,7 @@ import textwrap
 from typing import Any
 
 from backend.config import MAX_TEXT_CHARS
-from backend.services.llm_service import generate_quiz_raw
+from backend.services import llm_service
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +234,7 @@ def run_quiz_pipeline(
 
     prepared = prepare_notes(notes)
     prompt = build_prompt(prepared, num_questions, difficulty, question_types)
-    raw, provider = generate_quiz_raw(prompt, num_questions, difficulty, question_types)
+    raw, provider = llm_service.generate_quiz_raw(prompt, num_questions, difficulty, question_types)
     questions = parse_quiz_response(raw)
 
     # Run quality validation — returns only structurally valid, non-duplicate questions
