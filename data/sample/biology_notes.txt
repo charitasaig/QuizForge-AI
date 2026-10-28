@@ -1,0 +1,50 @@
+Biology Sample Notes — Photosynthesis and Cell Biology
+
+PHOTOSYNTHESIS
+Photosynthesis is the process by which green plants, algae and some bacteria convert light
+energy (usually from the sun) into chemical energy stored as glucose. The overall equation is:
+  6CO₂ + 6H₂O + light energy → C₆H₁₂O₆ + 6O₂
+
+The process occurs in the chloroplast and has two main stages:
+1. Light-dependent reactions (in the thylakoid membrane)
+   - Chlorophyll absorbs sunlight.
+   - Water molecules are split (photolysis), releasing oxygen as a by-product.
+   - ATP and NADPH are produced.
+2. Light-independent reactions / Calvin Cycle (in the stroma)
+   - CO₂ is fixed using ATP and NADPH.
+   - Glucose is synthesised.
+
+Factors that affect the rate of photosynthesis:
+  - Light intensity
+  - CO₂ concentration
+  - Temperature
+  - Water availability
+
+CELL BIOLOGY
+The cell is the basic unit of life. There are two main cell types:
+  - Prokaryotic cells: no membrane-bound nucleus (e.g., bacteria).
+  - Eukaryotic cells: have a membrane-bound nucleus (e.g., plants, animals, fungi).
+
+Key organelles in a eukaryotic cell:
+  - Nucleus: contains DNA and controls cell activity.
+  - Mitochondria: site of aerobic respiration; produces ATP ("powerhouse of the cell").
+  - Ribosome: site of protein synthesis.
+  - Endoplasmic reticulum (ER): rough ER has ribosomes and is involved in protein processing;
+    smooth ER is involved in lipid synthesis.
+  - Golgi apparatus: modifies, packages and ships proteins and lipids.
+  - Chloroplast (plants only): site of photosynthesis.
+  - Vacuole: storage organelle; large central vacuole in plant cells.
+  - Cell membrane: phospholipid bilayer controlling what enters and exits the cell.
+  - Cell wall (plants, fungi): provides structural support; made of cellulose in plants.
+
+CELL DIVISION
+Mitosis produces two genetically identical daughter cells and is used for growth and repair.
+Meiosis produces four genetically unique haploid cells and is used for sexual reproduction.
+
+DNA BASICS
+DNA (deoxyribonucleic acid) is the hereditary material in all living organisms.
+It is a double helix made of nucleotides. Each nucleotide contains:
+  - A phosphate group
+  - A deoxyribose sugar
+  - A nitrogenous base (A, T, C or G)
+Base pairing rules: A pairs with T; C pairs with G.

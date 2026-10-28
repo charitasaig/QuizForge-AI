@@ -1,0 +1,57 @@
+Computer Science Sample Notes — Python Programming
+
+PYTHON BASICS
+Python is a high-level, interpreted, general-purpose programming language created by
+Guido van Rossum and first released in 1991. It emphasises code readability using
+indentation as syntax.
+
+DATA TYPES
+- int: whole numbers (e.g., 42)
+- float: decimal numbers (e.g., 3.14)
+- str: text strings (e.g., "hello")
+- bool: True or False
+- list: ordered, mutable sequence (e.g., [1, 2, 3])
+- tuple: ordered, immutable sequence (e.g., (1, 2, 3))
+- dict: key-value pairs (e.g., {"name": "Alice", "age": 25})
+- set: unordered, unique elements (e.g., {1, 2, 3})
+
+CONTROL FLOW
+if / elif / else — conditional execution.
+for loop — iterates over a sequence.
+while loop — runs while a condition is True.
+break — exits the loop immediately.
+continue — skips to the next iteration.
+
+FUNCTIONS
+Defined with the def keyword. Can accept parameters and return values.
+Lambda functions are anonymous one-liners: lambda x: x * 2
+
+OBJECT-ORIENTED PROGRAMMING (OOP)
+Key concepts:
+- Class: blueprint for objects.
+- Object: instance of a class.
+- Inheritance: a child class inherits attributes/methods from a parent class.
+- Encapsulation: bundling data and methods; using private attributes (_name, __name).
+- Polymorphism: different classes can use the same interface (e.g., overriding methods).
+
+COMMON BUILT-IN FUNCTIONS
+len(), range(), type(), print(), input(), int(), str(), float(),
+list(), dict(), zip(), enumerate(), map(), filter(), sorted(), reversed()
+
+EXCEPTION HANDLING
+try / except / else / finally block.
+Common exceptions: ValueError, TypeError, IndexError, KeyError, FileNotFoundError.
+
+MODULES AND PACKAGES
+import module_name
+from module_name import function_name
+Use pip to install third-party packages: pip install package_name
+
+POPULAR LIBRARIES
+- NumPy: numerical computing with arrays.
+- pandas: data manipulation and analysis.
+- Matplotlib / Seaborn: data visualisation.
+- Requests: HTTP requests.
+- Flask / Django: web frameworks.
+- scikit-learn: machine learning.
+- TensorFlow / PyTorch: deep learning.

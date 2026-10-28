@@ -1,0 +1,36 @@
+# Secrets — NEVER commit
+.env
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Notebooks
+*.ipynb_checkpoints/
+
+# Local SQLite history DB — contains user data, do not commit
+data/quiz_history.db
