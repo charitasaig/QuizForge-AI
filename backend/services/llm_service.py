@@ -76,64 +76,139 @@ def _mock_response(
     """
     Return a hard-coded JSON response so the app is fully testable
     without any API key (demo / offline mode).
+    Produces varied, distinct questions across requested types.
     """
-    questions = []
-    q_index = 0
-
-    if "mcq" in question_types:
-        for i in range(min(2, num_questions - q_index)):
-            questions.append({
-                "type": "mcq",
-                "question": f"[DEMO MCQ {i+1}] Which of the following best describes photosynthesis?",
-                "options": {
-                    "A": "The process by which plants convert sunlight into chemical energy",
-                    "B": "The process by which animals digest food",
-                    "C": "The process of cellular respiration",
-                    "D": "The process of water evaporation",
-                },
-                "answer": "A",
-                "explanation": "Photosynthesis is the process used by plants to convert light energy into glucose.",
-                "source_hint": "Demo mode — no real notes were analysed.",
-                "flagged": False,
-            })
-            q_index += 1
-            if q_index >= num_questions:
-                break
-
-    if "true_false" in question_types and q_index < num_questions:
-        questions.append({
-            "type": "true_false",
-            "question": "[DEMO T/F] Plants release oxygen as a by-product of photosynthesis.",
-            "answer": "True",
-            "explanation": "Oxygen is released when water molecules are split during the light-dependent reactions.",
-            "source_hint": "Demo mode — no real notes were analysed.",
-            "flagged": False,
-        })
-        q_index += 1
-
-    if "short_answer" in question_types and q_index < num_questions:
-        questions.append({
-            "type": "short_answer",
-            "question": "[DEMO SA] What molecule is produced as the primary output of photosynthesis?",
-            "answer": "Glucose (C₆H₁₂O₆)",
-            "explanation": "Glucose is synthesised in the Calvin cycle using CO₂ and the energy stored in ATP and NADPH.",
-            "source_hint": "Demo mode — no real notes were analysed.",
-            "flagged": False,
-        })
-        q_index += 1
-
-    # Pad to requested count with MCQ copies if needed
-    while q_index < num_questions:
-        questions.append({
+    _MCQ_POOL = [
+        {
             "type": "mcq",
-            "question": f"[DEMO MCQ extra {q_index+1}] Sample question about the provided notes.",
-            "options": {"A": "Option A", "B": "Option B", "C": "Option C", "D": "Option D"},
+            "question": "[DEMO MCQ 1] Which of the following best describes photosynthesis?",
+            "options": {
+                "A": "The process by which plants convert sunlight into chemical energy",
+                "B": "The process by which animals digest food",
+                "C": "The process of cellular respiration",
+                "D": "The process of water evaporation",
+            },
             "answer": "A",
-            "explanation": "This is a placeholder question in demo mode.",
-            "source_hint": "Demo mode.",
+            "explanation": "Photosynthesis is the process used by plants to convert light energy into glucose.",
+            "source_hint": "Demo mode — converts sunlight into chemical energy.",
             "flagged": False,
-        })
-        q_index += 1
+        },
+        {
+            "type": "mcq",
+            "question": "[DEMO MCQ 2] Where do the light-dependent reactions occur within plant chloroplasts?",
+            "options": {
+                "A": "Thylakoid membranes",
+                "B": "Mitochondrial matrix",
+                "C": "Cell wall",
+                "D": "Cytoplasm",
+            },
+            "answer": "A",
+            "explanation": "Light reactions occur in the thylakoid membranes.",
+            "source_hint": "Demo mode — light reactions occur in thylakoids.",
+            "flagged": False,
+        },
+        {
+            "type": "mcq",
+            "question": "[DEMO MCQ 3] Which green pigment absorbs sunlight to power photosynthesis?",
+            "options": {
+                "A": "Chlorophyll",
+                "B": "Carotene",
+                "C": "Melanin",
+                "D": "Hemoglobin",
+            },
+            "answer": "A",
+            "explanation": "Chlorophyll is the primary pigment for light absorption.",
+            "source_hint": "Demo mode — chlorophyll absorbs sunlight.",
+            "flagged": False,
+        },
+    ]
+
+    _TF_POOL = [
+        {
+            "type": "true_false",
+            "question": "[DEMO T/F 1] Plants release oxygen as a by-product of photosynthesis.",
+            "answer": "True",
+            "explanation": "Oxygen is released when water molecules are split during light reactions.",
+            "source_hint": "Demo mode — oxygen released as a by-product.",
+            "flagged": False,
+        },
+        {
+            "type": "true_false",
+            "question": "[DEMO T/F 2] The Calvin cycle occurs in the thylakoid membrane.",
+            "answer": "False",
+            "explanation": "The Calvin cycle occurs in the stroma of the chloroplast.",
+            "source_hint": "Demo mode — Calvin cycle occurs in the stroma.",
+            "flagged": False,
+        },
+    ]
+
+    _SA_POOL = [
+        {
+            "type": "short_answer",
+            "question": "[DEMO SA 1] What molecule is produced as the primary carbohydrate output of photosynthesis?",
+            "answer": "Glucose (C₆H₁₂O₆)",
+            "explanation": "Glucose is synthesised in the Calvin cycle using carbon dioxide and light energy.",
+            "source_hint": "Demo mode — glucose is synthesized in the Calvin cycle.",
+            "flagged": False,
+        },
+        {
+            "type": "short_answer",
+            "question": "[DEMO SA 2] What chemical energy carrier molecule powers cellular biochemical reactions?",
+            "answer": "Adenosine triphosphate (ATP)",
+            "explanation": "ATP stores and delivers energy for cellular processes.",
+            "source_hint": "Demo mode — energy stored in ATP molecules.",
+            "flagged": False,
+        },
+    ]
+
+    questions = []
+    mcq_idx = 0
+    tf_idx = 0
+    sa_idx = 0
+
+    # Round-robin among requested question types to satisfy requested count
+    for slot in range(num_questions):
+        t = question_types[slot % len(question_types)]
+        if t == "mcq":
+            if mcq_idx < len(_MCQ_POOL):
+                questions.append(dict(_MCQ_POOL[mcq_idx]))
+                mcq_idx += 1
+            else:
+                questions.append({
+                    "type": "mcq",
+                    "question": f"[DEMO MCQ {slot+1}] Which factor directly affects the rate of photosynthesis?",
+                    "options": {"A": "Light intensity", "B": "Wind direction", "C": "Sound waves", "D": "Magnetic field"},
+                    "answer": "A",
+                    "explanation": "Light intensity directly affects the rate of photosynthesis.",
+                    "source_hint": "Demo mode — light intensity rate factor.",
+                    "flagged": False,
+                })
+        elif t == "true_false":
+            if tf_idx < len(_TF_POOL):
+                questions.append(dict(_TF_POOL[tf_idx]))
+                tf_idx += 1
+            else:
+                questions.append({
+                    "type": "true_false",
+                    "question": f"[DEMO T/F {slot+1}] Carbon dioxide enters plant leaves through microscopic pores called stomata.",
+                    "answer": "True",
+                    "explanation": "Stomata allow gas exchange.",
+                    "source_hint": "Demo mode — stomata allow gas exchange.",
+                    "flagged": False,
+                })
+        elif t == "short_answer":
+            if sa_idx < len(_SA_POOL):
+                questions.append(dict(_SA_POOL[sa_idx]))
+                sa_idx += 1
+            else:
+                questions.append({
+                    "type": "short_answer",
+                    "question": f"[DEMO SA {slot+1}] Name the microscopic pores on plant leaves that facilitate gas exchange.",
+                    "answer": "Stomata",
+                    "explanation": "Stomata regulate carbon dioxide uptake and water vapor loss.",
+                    "source_hint": "Demo mode — stomata facilitate gas exchange.",
+                    "flagged": False,
+                })
 
     return json.dumps({"questions": questions})
 
