@@ -1,363 +1,236 @@
-# 🧠 QuizForge AI — Smart Notes-to-Quiz Generator
+# 🧠 QuizForge AI — Smart Notes-to-Quiz Generator (Agentic RAG Edition)
 
 Turn class notes into revision quizzes in seconds using AI.  
-Supports Multiple Choice, True/False and Short Answer questions with answer keys, scoring, timed mode, export and persistent history.
+Upgraded with **Agentic AI orchestration**, **Retrieval-Augmented Generation (RAG)**, and **NLP-powered semantic quality gates**. Supports Multiple Choice, True/False, and Short Answer questions with source citations, evidence quotes, answer keys, scoring, timed mode, export, and persistent history.
 
 ---
 
 ## What QuizForge AI Does
 
-1. Accept pasted text or upload a TXT/PDF file.
-2. Send the notes to an LLM (Groq or Gemini).
-3. Return a structured quiz of MCQ, True/False and/or Short Answer questions.
-4. Let the student take the quiz and submit answers.
-5. Score the results and show an answer key with explanations and source hints.
-6. Export questions and answers to TXT or CSV.
-7. Save every quiz to a local SQLite database so history persists across sessions.
+1. **Accept Notes**: Paste text or upload a `.txt` / `.pdf` file.
+2. **Chunk & Index (RAG)**: Break notes into boundary-aware text chunks and index them into an in-memory vector store using local embeddings (TF-IDF or Sentence-Transformers).
+3. **Agentic AI Orchestration**: A bounded state machine plans topics across chunks, retrieves focused context passages, prompts the LLM (Groq or Gemini), and evaluates candidates against a multi-stage quality gate.
+4. **NLP Quality & Grounding Gate**:
+   - **Semantic Similarity Detection**: Prevents duplicate or near-duplicate questions using cosine similarity (configurable threshold: `0.82`).
+   - **Quality & Leakage Checks**: Rejects answer-in-stem leakage, identical distractors, and empty options.
+   - **Evidence Grounding**: Verifies factual grounding against retrieved chunks and extracts real sentence quotes. Never fabricates citations.
+5. **Targeted Self-Correction**: Candidates failing validation receive targeted feedback and are retried up to 2 times per question slot.
+6. **Student Quiz Interface**: Take quizzes interactively, submit answers, and receive instant scoring with explanations and verifiable source evidence.
+7. **Export & History**: Export questions, answer keys, and results to TXT and CSV with full citation traceability, persisted automatically in a local SQLite database.
 
 ---
 
-## Current Features
+## Features
 
-| Feature | Status |
-|---------|--------|
-| Paste notes | ✅ |
-| Upload TXT / PDF | ✅ |
-| Multiple Choice questions (4 options) | ✅ |
-| True / False questions | ✅ |
-| Short Answer questions | ✅ |
-| Difficulty selector (easy / medium / hard) | ✅ |
-| Question count selector (1–20) | ✅ |
-| Separate quiz view — answers hidden | ✅ |
-| Answer key + explanations + source hints | ✅ |
-| Question quality validation (duplicates, invalid MCQ, flagged) | ✅ |
-| Score calculation (MCQ, T/F, short-answer keyword baseline) | ✅ |
-| Incorrect-answer review with filter | ✅ |
-| Timed quiz mode (5/10/15/30 min) | ✅ |
-| Export questions TXT | ✅ |
-| Export answer key TXT | ✅ |
-| Export full CSV | ✅ |
-| Export results CSV (after submission) | ✅ |
-| Persistent quiz history (SQLite) | ✅ |
-| Delete individual / all history entries | ✅ |
-| Groq → Gemini → Demo fallback chain | ✅ |
-| Demo mode (no API key required) | ✅ |
-
----
-
-## Prerequisites
-
-- Python 3.11 or 3.12 (3.13 also tested and working)
-- pip
-- A free Groq API key (recommended) — <https://console.groq.com>
-- Optional: Gemini API key — <https://aistudio.google.com/app/apikey>
+| Feature | Category | Status |
+|---------|----------|--------|
+| Paste notes & Upload TXT / PDF | Core | ✅ |
+| Multiple Choice, True / False, Short Answer | Core | ✅ |
+| Difficulty (Easy / Medium / Hard) & Count (1–20) | Core | ✅ |
+| Answer key + explanations + source hints | Core | ✅ |
+| Score calculation & incorrect-answer review | Core | ✅ |
+| Timed quiz mode (5 / 10 / 15 / 30 min) | Core | ✅ |
+| Export TXT (Questions & Answer Key) & CSV | Core | ✅ |
+| Persistent SQLite quiz history | Core | ✅ |
+| Multi-provider LLM chain: Groq → Gemini → Demo | LLM | ✅ |
+| Text chunking with character-offset tracking | RAG | ✅ |
+| In-memory vector store with cosine similarity | RAG | ✅ |
+| Diverse chunk sampling across source notes | RAG | ✅ |
+| Traceable source citations (`Chunk X (chars Y–Z)`) | RAG | ✅ |
+| Factual evidence extraction (real sentence quotes) | RAG | ✅ |
+| Graceful zero-dependency TF-IDF embedding fallback | RAG / NLP | ✅ |
+| Auto-upgrade to `sentence-transformers` when installed | RAG / NLP | ✅ |
+| Semantic duplicate detection (configurable threshold) | NLP | ✅ |
+| Answer-in-stem leakage detection | NLP | ✅ |
+| Distractor quality & option deduplication | NLP | ✅ |
+| Bounded Agent workflow (Plan → Retrieve → Gen → Gate → Retry) | Agentic AI | ✅ |
+| Hard retry bounds (`MAX_AGENT_RETRIES = 2`) | Agentic AI | ✅ |
+| Targeted retry feedback prompting | Agentic AI | ✅ |
+| Agent execution metrics & rejection categorization | Agentic AI | ✅ |
+| Streamlit metrics expander & citations on cards | UI | ✅ |
 
 ---
 
-## Setup
+## Architecture & Data Flow
 
-### 1. Clone the repository
-
-```powershell
-git clone https://github.com/your-username/quizforge-ai.git
-cd quizforge-ai
+```
+                      User Notes (Pasted / TXT / PDF)
+                                   │
+                                   ▼
+                      [backend/utils/validators.py]
+                        (validate length & format)
+                                   │
+                                   ▼
+                 [backend/rag/chunker.py]
+           (Split into chunks with character offsets)
+                                   │
+                                   ▼
+                [backend/rag/embeddings.py]
+    (Compute vectors: Sentence-Transformers or TF-IDF)
+                                   │
+                                   ▼
+               [backend/rag/vector_store.py]
+                (In-Memory Cosine Vector Store)
+                                   │
+                                   ▼
+      ┌────────────────────────────────────────────────────────┐
+      │               QUIZ AGENT ORCHESTRATOR                  │
+      │             [backend/agent/quiz_agent.py]              │
+      │                                                        │
+      │  1. Topic Planning & Passage Retrieval                │
+      │     (Sample diverse chunks across notes)              │
+      │                                                        │
+      │  2. Candidate Generation via LLM Service               │
+      │     (Groq -> Gemini -> Demo Mock Pool)                │
+      │                                                        │
+      │  3. Multi-Stage Quality Gate:                          │
+      │     ├─ Structural Validation (valid MCQ/TF, format)    │
+      │     ├─ Semantic Deduplication (cosine similarity <0.82)│
+      │     ├─ NLP Quality (no answer leakage, distinct options│
+      │     └─ Grounding Verifier (factual overlap with chunk) │
+      │                                                        │
+      │  4. Bounded Retry Feedback Loop (max 2 retries):       │
+      │     └─ Pass rejection reason back to prompt if failed  │
+      └────────────────────────────────────────────────────────┘
+                                   │
+                    Validated Questions & Metrics
+                                   │
+                                   ▼
+                    [backend/core/pipeline.py]
+          (Preserves signature: run_quiz_pipeline())
+                                   │
+        ┌──────────────────────────┴──────────────────────────┐
+        ▼                                                     ▼
+[SQLite History]                                      [Streamlit UI]
+(Save questions & citations)                 (Display cards, metrics,
+                                              citations & take quiz)
+                                                              │
+                                                              ▼
+                                                     [Quiz Evaluator]
+                                              (Scoring, answer review,
+                                               TXT / CSV exports)
 ```
 
-### 2. Create and activate a virtual environment
+---
 
+## Detailed Component Overview
+
+### 1. NLP Layer (`backend/nlp/`)
+- **`semantic_similarity.py`**:
+  - Computes pairwise cosine similarity across question stems using local embeddings.
+  - Rejects candidates exceeding `SEMANTIC_SIMILARITY_THRESHOLD` (default: `0.82`).
+  - Configurable threshold allows tuning between strict novelty and permissive phrasing.
+- **`quality_checker.py`**:
+  - **Answer Leakage**: Detects if the correct answer verbatim or stem keywords appear directly in the question prompt.
+  - **Distractor Quality**: Rejects multiple choice questions where distractors repeat each other or duplicate the correct answer.
+  - **Clarity & Length Bounds**: Flags ambiguous questions or prompts with insufficient length.
+
+### 2. RAG Layer (`backend/rag/`)
+- **`chunker.py`**:
+  - Segments input text into boundary-aware windows (default: 800 chars, 150 char overlap) preserving `char_start` and `char_end` relative to the original document.
+- **`embeddings.py`**:
+  - Provides a unified vector representation.
+  - Automatically detects if `sentence-transformers` (`all-MiniLM-L6-v2`) is available; if not, falls back seamlessly to **Scikit-Learn normalized term-frequency vectors (TF-IDF)**.
+  - Zero cloud dependencies, zero latency, 100% offline-capable.
+- **`vector_store.py`**:
+  - In-memory cosine similarity store supporting top-$k$ retrieval and diverse note sampling.
+- **`grounding_verifier.py`**:
+  - Validates factual support by checking content-word overlap between candidate questions/answers and retrieved note chunks.
+  - Extracts the exact supporting sentence quote as `source_evidence`.
+  - **Anti-Hallucination Guarantee**: If a question cannot be grounded in the text, `grounded = False` and no source citation is invented.
+
+### 3. Agentic AI Layer (`backend/agent/`)
+- **`quiz_agent.py`**:
+  - Orchestrates question synthesis through a bounded state machine:
+    1. **Plan**: Partitions generation targets across available evidence chunks.
+    2. **Generate**: Requests candidate questions with focused context snippets.
+    3. **Evaluate**: Tests candidate against structural, semantic similarity, quality, and grounding gates.
+    4. **Self-Correct**: If rejected, injects explicit error guidance (e.g. *"Previous question was too similar to Question 1; generate a question focusing on a different concept"*) and re-generates.
+  - **Bounded Execution**: Hard cap of `MAX_AGENT_RETRIES = 2` retries per question slot to prevent infinite loops.
+  - **Execution Metrics**: Tracks total candidates generated, accepted, rejected by category (`structural`, `duplicate`, `quality`, `unsupported`), and self-corrected count.
+
+---
+
+## Installation & Setup
+
+### 1. Prerequisites
+- Python 3.11 or 3.12 (Python 3.12.10 recommended)
+- `pip`
+
+### 2. Virtual Environment & Dependencies
 ```powershell
+# Clone or navigate to the repository
+cd Quiz-Forge-master
+
+# Create and activate virtual environment
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-```
 
-### 3. Install dependencies
-
-```powershell
+# Install required dependencies
 pip install -r requirements.txt
 ```
 
-### 4. Configure the API key
+> **Optional: Dense Neural Embeddings**  
+> QuizForge includes a local TF-IDF embedding engine out-of-the-box. To optionally enable dense neural embeddings:
+> ```powershell
+> pip install sentence-transformers
+> ```
+> QuizForge will auto-detect it and switch from `TF-IDF` to `Sentence-Transformers`.
 
-Copy the example file and fill in your key:
-
+### 3. API Key Configuration
+Copy the `.env.example` file to `.env`:
 ```powershell
 Copy-Item .env.example .env
 ```
-
 Edit `.env`:
-
+```ini
+GROQ_API_KEY=gsk_your_groq_key_here
+GEMINI_API_KEY=your_gemini_key_here
 ```
-GROQ_API_KEY=gsk_your_real_key_here
-```
+> **No API Key?** Leave the placeholder. QuizForge runs automatically in **Demo Mode**, generating structured sample quizzes across all question types with complete RAG grounding and agent validation.
 
-> **No API key?** Leave the placeholder. The app runs in **demo mode** automatically and shows sample questions.
-
-### 5. Run the application
-
+### 4. Run the Streamlit Application
 ```powershell
 streamlit run app.py
 ```
-
-Open <http://localhost:8501> in your browser.
+Open [http://localhost:8501](http://localhost:8501) in your browser.
 
 ---
 
-## Running Tests
+## Running the Test Suite
+
+QuizForge AI features a comprehensive automated test suite with **182 passing tests** and 0 failures, covering all layers with mocked LLMs:
 
 ```powershell
-python -m pytest tests/ -v
+python -m pytest tests -v
 ```
 
-All 142 tests run without a live API — LLM calls are mocked.
-
----
-
-## How to Use Each Question Type
-
-| Type | How to answer | Scoring |
-|------|--------------|---------|
-| Multiple Choice | Click one radio button (A–D) | 1 pt if exact match |
-| True / False | Click True or False | 1 pt if exact match |
-| Short Answer | Type a few sentences | Keyword-overlap baseline; marked Uncertain when partial |
-
-Short-answer grading is approximate. The status **Uncertain** means the keyword overlap was 30–60 % — always review these manually.
-
----
-
-## Difficulty Levels
-
-| Level | Question style |
-|-------|---------------|
-| Easy | Definitions, direct recall, simple examples |
-| Medium | Concepts, comparisons, relationships between ideas |
-| Hard | Multi-step reasoning, analysis, synthesising multiple points |
-
-Hard questions are still grounded in the supplied notes — no outside knowledge is required.
-
----
-
-## Timed Quiz Mode
-
-1. Enable **Timed Mode** in the sidebar.
-2. Select a duration (5 / 10 / 15 / 30 minutes).
-3. Click **Generate Quiz** — the timer starts immediately.
-4. The deadline is stored as an absolute timestamp, so it is not reset by Streamlit reruns.
-5. When time expires the quiz is submitted automatically.
-6. Install `streamlit-autorefresh` for a live countdown display:
-   ```powershell
-   pip install streamlit-autorefresh
-   ```
-   Without it, the timer updates only on interaction but still submits correctly when the deadline passes.
-
----
-
-## Score Calculation
-
-After submitting, QuizForge shows:
-
-- Total questions
-- Correct / Incorrect / Unanswered / Uncertain
-- Score (points / max points)
-- Percentage
-- Time taken (timed mode only)
-
-MCQ and True/False use exact-match grading.  
-Short answers use keyword-overlap: ≥ 60 % overlap = correct, 30–60 % = uncertain, < 30 % = incorrect.
-
----
-
-## Exporting Quizzes
-
-Four download buttons appear below every quiz:
-
-| Button | Contents |
-|--------|----------|
-| Questions TXT | Questions and options only — **no answers** |
-| Answer Key TXT | Answers, explanations and source hints |
-| Full CSV | All fields including answers (UTF-8, properly escaped) |
-| Results CSV | Student answers + grading status (appears after submission) |
-
-Filenames include the quiz ID, e.g. `quizforge_a1b2c3d4_questions.txt`.
-
----
-
-## Quiz History
-
-All quizzes are saved to `data/quiz_history.db` (SQLite).  
-History persists across browser refreshes and server restarts.
-
-From the **History** page (sidebar):
-- Browse all saved quizzes with metadata.
-- Load and inspect question lists.
-- Download questions or CSV for any past quiz.
-- Delete individual quizzes (with confirmation).
-- Delete all history.
-
----
-
-## Data Flow
-
-```
-User (paste / upload)
-  │
-  ▼
-validators.py          ← reject empty, oversized, wrong-type input
-  │
-  ▼
-pipeline.extract_text()     ← TXT decode or PDF text extraction
-  │
-  ▼
-pipeline.prepare_notes()    ← clean whitespace, truncate to 15 000 chars
-  │
-  ▼
-pipeline.build_prompt()     ← inject notes + difficulty + types into prompt
-  │
-  ▼
-llm_service.generate_quiz_raw()
-  ├─ Try Groq  (openai/gpt-oss-20b)
-  ├─ Fallback Gemini (gemini-2.5-flash)
-  └─ Fallback demo/mock mode
-  │
-  ▼
-pipeline.parse_quiz_response()   ← validate and normalise JSON
-  │
-  ▼
-quiz_validator.validate_questions()  ← remove duplicates, invalid MCQs
-  │
-  ▼
-history_service.save_quiz()     ← persist to SQLite
-  │
-  ▼
-Streamlit UI  ← quiz form → submit → quiz_evaluator → results → export
-```
-
----
-
-## Prompt Design
-
-The prompt instructs the LLM to:
-
-1. Use **only** the provided notes — no invented facts.
-2. Include a `source_hint` for every answer (≤ 15 words quoting the notes).
-3. Set `"flagged": true` on questions that are vague or weakly supported.
-4. Return **strict JSON** — no markdown fences, no commentary.
-
----
-
-## LLM Providers
-
-| Priority | Provider | Model | Notes |
-|----------|----------|-------|-------|
-| 1 | Groq | `openai/gpt-oss-20b` | Fast, free tier |
-| 2 | Gemini | `gemini-2.5-flash` | Google free tier |
-| 3 | Demo mode | — | No key needed; sample questions |
-
-Model names and free-tier limits change. The versions above were verified in October 2026.
-
----
-
-## How Scanned PDFs Are Handled
-
-QuizForge uses `pypdf` for text extraction. If a PDF contains no extractable text (i.e. it is a scanned image), the app displays:
-
-> "Could not extract text from this PDF. It may be a scanned image. Please use a text-based PDF or paste the content manually."
-
-OCR is not built in. To use scanned PDFs, run an OCR tool (such as Tesseract) separately, save the output as a TXT file, and upload that instead.
-
----
-
-## How Long Notes Are Processed
-
-- Maximum input: **15 000 characters** (~3 000 words).
-- Notes longer than this are truncated at a sentence boundary before being sent to the LLM.
-- A visible `[… content truncated …]` marker is appended so you know truncation occurred.
-- If your notes are too long, copy the most relevant section and paste that instead.
+### Test Breakdown
+- `test_validators.py` (18 tests): Input validation, character limits, file format rules.
+- `test_document_processing.py` (19 tests): TXT encodings (UTF-8, Latin-1, CP1252), PDF text extraction, scanned PDF detection, sentence-boundary truncation.
+- `test_nlp_validator.py` (16 tests): Semantic deduplication, threshold sensitivity, distractor quality, answer leakage detection.
+- `test_rag_pipeline.py` (10 tests): Boundary chunker, offset accuracy, vector store indexing, diverse sampling, grounding verifier, and anti-fabrication rules.
+- `test_agentic_workflow.py` (5 tests): QuizAgent lifecycle, bounded retries, self-correction, metrics persistence, and pipeline signature backward-compatibility.
+- `test_edge_cases.py` (9 tests): Malformed JSON recovery, stopwords-only similarity, empty input, grounding edge cases, provider fallback, retry exhaustion termination.
+- `test_pipeline.py` (18 tests): Prompt generation, JSON extraction, error recovery.
+- `test_quiz_validator.py` (21 tests): Structural MCQ/TF verification, duplicate removals.
+- `test_quiz_evaluator.py` (16 tests): Deterministic scoring, exact match, keyword overlap heuristics.
+- `test_quiz_exporter.py` (20 tests): TXT questions/answers, CSV headers, citation escaping.
+- `test_history_service.py` (15 tests): SQLite CRUD, deletion, listing, retrieval.
+- `test_llm_service.py` (5 tests): Groq → Gemini → Demo fallback cascade.
+- `test_scenarios.py` (10 tests): End-to-end multi-disciplinary scenario runs (CS, Biology, History).
 
 ---
 
 ## Known Limitations
 
-- Scanned / image-based PDFs are not supported.
-- Short-answer grading is a keyword-overlap heuristic — always review **Uncertain** results manually.
-- AI-generated questions may be incorrect or imprecise — verify against your source notes.
-- The quality validator uses normalised text comparison for duplicate detection; near-synonyms are not detected.
-- Free-tier rate limits may cause temporary failures; the app falls back to demo mode automatically.
-- The timer countdown requires `streamlit-autorefresh` for live display; without it the timer still enforces the deadline but only updates on user interaction.
-- Maximum 20 questions per generation.
-
----
-
-## Project Structure
-
-```
-Quiz-Forge/
-├── app.py                            Main Streamlit entry point
-├── pages/
-│   └── 1_History.py                 Persistent quiz history page
-├── components/
-│   └── quiz_card.py                 Reusable UI helpers
-├── backend/
-│   ├── config.py                    Reads secrets / env vars
-│   ├── services/
-│   │   └── llm_service.py           Groq / Gemini / demo fallback
-│   ├── core/
-│   │   ├── pipeline.py              Text extract → prepare → prompt → parse
-│   │   ├── quiz_validator.py        Duplicate / invalid MCQ / flag detection
-│   │   ├── quiz_evaluator.py        Score calculation and per-question results
-│   │   ├── quiz_exporter.py         TXT and CSV export
-│   │   └── history_service.py       SQLite persistence
-│   └── utils/
-│       └── validators.py            Input and file validation
-├── data/
-│   ├── sample/                      Three synthetic sample note files
-│   └── quiz_history.db              SQLite database (auto-created)
-├── tests/                           142 pytest tests, no live API calls
-│   ├── test_validators.py
-│   ├── test_pipeline.py
-│   ├── test_quiz_validator.py
-│   ├── test_quiz_evaluator.py
-│   ├── test_quiz_exporter.py
-│   ├── test_history_service.py
-│   ├── test_llm_service.py
-│   ├── test_document_processing.py
-│   └── test_scenarios.py
-├── .env                             Your real keys (never commit)
-├── .env.example                     Placeholder keys (safe to commit)
-├── .gitignore
-├── requirements.txt
-├── pytest.ini
-└── README.md
-```
-
----
-
-## Dependencies
-
-| Package | Purpose |
-|---------|---------|
-| streamlit | UI framework |
-| groq | Groq API client |
-| google-genai | Gemini API client |
-| pypdf | PDF text extraction |
-| pandas | Data handling |
-| python-dotenv | Load `.env` for local dev |
-
-Optional: `streamlit-autorefresh` for live timer countdown.
-
----
-
-## Deployment (Streamlit Community Cloud)
-
-1. Push to a public GitHub repository (ensure `.env` and `secrets.toml` are in `.gitignore`).
-2. Go to <https://share.streamlit.io> → **New app** → select repo and `app.py`.
-3. Under **Advanced settings → Secrets**, paste:
-   ```toml
-   GROQ_API_KEY = "gsk_your_key_here"
-   ```
-4. Deploy. The SQLite history file will persist within the deployment container session.
+1. **Scanned / Image PDFs**: Text extraction relies on `pypdf`. Image-only / scanned PDFs without embedded text streams are detected and rejected with a helpful user prompt; OCR is not embedded.
+2. **Short-Answer Auto-Grading**: Grading for free-text short answers utilizes a keyword-overlap baseline (≥60% correct, 30–60% uncertain). Students should review uncertain questions using the displayed source citation.
+3. **Active Embedding Default**: By default, the system operates in local `TF-IDF` mode to ensure instant startup with zero network dependencies or heavy PyTorch downloads. Installing `sentence-transformers` unlocks dense neural representations.
+4. **Context Limit**: Input documents are truncated at 15,000 characters at sentence boundaries to fit within LLM token budgets.
 
 ---
 
 ## License
 
-MIT — see `LICENSE` for details.
+MIT License — see `LICENSE` for details.
