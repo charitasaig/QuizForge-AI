@@ -38,6 +38,9 @@ from backend.core.quiz_exporter import (
     export_results_csv,
 )
 from backend.core import history_service
+from backend.config import get_backend_url
+from backend.services.api_client import check_backend_status, generate_quiz_remote
+
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -125,6 +128,26 @@ with st.sidebar:
         index=0,
         format_func=lambda m: f"{m} minutes",
         disabled=not _timed_mode,
+    )
+
+    st.divider()
+    st.subheader("🌐 Backend Service")
+    _backend_url = get_backend_url()
+    st.caption(f"**Target:** [{_backend_url}]({_backend_url})")
+
+    _backend_status = check_backend_status(_backend_url)
+    if _backend_status.get("api_ready"):
+        st.success("🟢 REST API Online")
+    elif _backend_status.get("online"):
+        st.info("🟣 Connected to Render Host (Local Engine active)")
+    else:
+        st.warning("🟡 Standalone Mode (Local Engine)")
+
+    _backend_mode = st.radio(
+        "Execution Engine",
+        options=["Auto (Cloud / Local Fallback)", "Force Local RAG"],
+        index=0,
+        help="Auto attempts cloud backend API if ready, falling back gracefully to local engine."
     )
 
     st.divider()
@@ -228,11 +251,26 @@ if _generate_clicked:
 
     with st.spinner("🤖 Generating quiz… this may take up to 30 seconds."):
         try:
-            _questions, _provider = run_quiz_pipeline(
-                _raw_notes, _num_questions, _difficulty, _question_types
-            )
-            from backend.core.pipeline import get_last_agent_metrics
-            _agent_metrics = get_last_agent_metrics()
+            _questions = None
+            _provider = ""
+            _agent_metrics = None
+
+            # Attempt cloud backend if enabled and API is ready
+            if _backend_mode.startswith("Auto") and _backend_status.get("api_ready"):
+                _remote_res = generate_quiz_remote(
+                    _raw_notes, _num_questions, _difficulty, _question_types, base_url=_backend_url
+                )
+                if _remote_res:
+                    _questions, _provider, _agent_metrics = _remote_res
+
+            # Fall back or use local pipeline engine
+            if not _questions:
+                _questions, _provider = run_quiz_pipeline(
+                    _raw_notes, _num_questions, _difficulty, _question_types
+                )
+                from backend.core.pipeline import get_last_agent_metrics
+                _agent_metrics = get_last_agent_metrics()
+
 
             # Run (and store) validation report
             _report = validate_questions(_questions)

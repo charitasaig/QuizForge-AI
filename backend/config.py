@@ -26,6 +26,19 @@ def get_gemini_api_key() -> str | None:
     return os.environ.get("GEMINI_API_KEY")
 
 
+DEFAULT_BACKEND_URL: str = "https://quizforge-ai-me4t.onrender.com"
+
+
+def get_backend_url() -> str:
+    """Return the backend URL, defaulting to the deployed Render backend."""
+    try:
+        return st.secrets["BACKEND_URL"]
+    except Exception:
+        pass
+    return os.environ.get("BACKEND_URL", DEFAULT_BACKEND_URL)
+
+
+
 # --- App-wide constants ---
 MAX_FILE_SIZE_MB: int = 5
 MAX_TEXT_CHARS: int = 15_000   # ~3 000 words — safe LLM context

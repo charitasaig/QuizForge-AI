@@ -177,7 +177,7 @@ pip install -r requirements.txt
 > ```
 > QuizForge will auto-detect it and switch from `TF-IDF` to `Sentence-Transformers`.
 
-### 3. API Key Configuration
+### 3. API Key & Backend Configuration
 Copy the `.env.example` file to `.env`:
 ```powershell
 Copy-Item .env.example .env
@@ -186,14 +186,31 @@ Edit `.env`:
 ```ini
 GROQ_API_KEY=gsk_your_groq_key_here
 GEMINI_API_KEY=your_gemini_key_here
+BACKEND_URL=https://quizforge-ai-me4t.onrender.com
 ```
 > **No API Key?** Leave the placeholder. QuizForge runs automatically in **Demo Mode**, generating structured sample quizzes across all question types with complete RAG grounding and agent validation.
 
-### 4. Run the Streamlit Application
+### 4. Running the Frontend & Backend
+
+#### A. Streamlit Frontend (Connected to Backend)
 ```powershell
 streamlit run app.py
 ```
-Open [http://localhost:8501](http://localhost:8501) in your browser.
+Open [http://localhost:8501](http://localhost:8501) (or `http://localhost:8502`) in your browser. The sidebar displays live backend connectivity to `https://quizforge-ai-me4t.onrender.com`.
+
+#### B. FastAPI REST API Backend
+```powershell
+python main.py
+# Or: uvicorn main:app --reload --port 8000
+```
+Interactive OpenAPI documentation will be accessible at: [http://localhost:8000/docs](http://localhost:8000/docs).
+
+#### C. Standalone Web Frontend
+Simply open `frontend/index.html` in your browser. It connects directly to the backend URL via Fetch API and provides a complete responsive quiz taking experience.
+
+### 5. Live Deployment
+- **Live Deployed Service (Render):** [https://quizforge-ai-me4t.onrender.com/](https://quizforge-ai-me4t.onrender.com/)
+
 
 ---
 
